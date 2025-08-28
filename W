@@ -3708,4 +3708,258 @@ function GUI.createTeleportKillsTab()
                 StarterGui:SetCore("SendNotification", {
                     Title = "Elerium Hub",
                     Text = "TP Kill enabled for " .. targetedTPKillPlayer.Name,
-                    Duration = 3, 
+                    Duration = 3
+                })
+            else
+                settings.tpKillEnabled = false
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Elerium Hub",
+                    Text = "No target selected for TP Kill!",
+                    Duration = 3
+                })
+            end
+        else
+            if tpKillConnection then
+                tpKillConnection:Disconnect()
+                tpKillConnection = nil
+            end
+            StarterGui:SetCore("SendNotification", {
+                Title = "Elerium Hub",
+                Text = "TP Kill Disabled!",
+                Duration = 3
+            })
+        end
+    end)
+    
+    tab:Textbox("TP Kill Range (0 to 50)", tostring(settings.tpKillRange), function(text)
+        local value = tonumber(text)
+        if value and value >= 0 and value <= 50 then
+            settings.tpKillRange = value
+        end
+    end)
+    
+    return tab
+end
+GUI.TeleportKillsTab = GUI.createTeleportKillsTab()
+
+-- In Teleport Kills Tab after initial playerNames population:
+Players.PlayerAdded:Connect(function(plr)
+    if plr ~= player then
+        table.insert(playerNames, plr.Name)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+    for i, name in ipairs(playerNames) do
+        if name == plr.Name then
+            table.remove(playerNames, i)
+            break
+        end
+    end
+end)
+
+GUI = GUI or {} -- Global table to store tabs, avoiding local register
+function GUI.createSettingsTab()
+    local tab = win:Tab("Scripts & Settings")
+    tab:Button("Xyrez Script", function()
+        pcall(function()
+            local success, result = pcall(function()
+                return loadstring(game:HttpGet("https://raw.githubusercontent.com/MaxicsSoft/XyrezAutoRank/main/ReachForMobileUsers.lua"))()
+            end)
+            if success then
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Elerium Hub",
+                    Text = "Xyrez Script loaded successfully!",
+                    Duration = 3
+                })
+            else
+                warn("Failed to load Xyrez Script: " .. tostring(result))
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Elerium Hub",
+                    Text = "Failed to load Xyrez Script. Check the script URL.",
+                    Duration = 5
+                })
+            end
+        end)
+    end)
+    tab:Button("Animations Hub (FE)", function()
+        pcall(function()
+            local success, result = pcall(function()
+                return loadstring(game:HttpGet("https://pastebin.com/raw/1p6xnBNf", true))()
+            end)
+            if success then
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Elerium Hub",
+                    Text = "Animations Hub (FE) loaded successfully!",
+                    Duration = 3
+                })
+            else
+                warn("Failed to load Animations Hub (FE): " .. tostring(result))
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Elerium Hub",
+                    Text = "Failed to load Animations Hub (FE). Check the script URL.",
+                    Duration = 5
+                })
+            end
+        end)
+    end)
+    tab:Button("Boost FPS [Removes Textures]", function()
+        for _, v in pairs(game:GetDescendants()) do
+            if v:IsA("Texture") or v:IsA("Decal") then
+                v:Destroy()
+            elseif v:IsA("MeshPart") then
+                v.TextureID = ""
+            elseif v:IsA("SpecialMesh") or v:IsA("Mesh") then
+                v.TextureId = ""
+            end
+        end
+        for _, v in pairs(game:GetDescendants()) do
+            if v:IsA("BasePart") and v.Material ~= Enum.Material.SmoothPlastic then
+                v.Material = Enum.Material.SmoothPlastic
+            end
+        end
+        StarterGui:SetCore("SendNotification", {
+            Title = "Elerium Hub",
+            Text = "FPS Boost applied! Textures removed and materials set to SmoothPlastic.",
+            Duration = 3
+        })
+    end)
+    tab:Button("Rejoin Server", function()
+        rejoinServer()
+    end)
+    tab:Button("Join Smallest Server", function()
+        joinSmallestServer()
+    end)
+    tab:Button("Join Good Ping Server", function()
+        local HTTPService = game:GetService("HttpService")
+        local TeleportService = game:GetService("TeleportService")
+        local StatsService = game:GetService("Stats")
+
+        local function fetchServersData(placeId, limit)
+            local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?limit=%d", placeId, limit)
+            local success, response = pcall(function()
+                return HTTPService:JSONDecode(game:HttpGet(url))
+            end)
+
+            if success and response and response.data then
+                return response.data
+            end
+
+            return nil
+        end
+
+        local placeId = game.PlaceId
+        local serverLimit = 100
+        local servers = fetchServersData(placeId, serverLimit)
+
+        if not servers then
+            return
+        end
+
+        local lowestPingServer = servers[1]
+
+        for _, server in pairs(servers) do
+            if server["ping"] < lowestPingServer["ping"] and server.maxPlayers > server.playing then
+                lowestPingServer = server
+            end
+        end
+
+        local commonLoadTime = 5
+        task.wait(commonLoadTime)
+
+        local pingThreshold = 100
+        local serverStats = StatsService.Network.ServerStatsItem
+        local dataPing = serverStats["Data Ping"]:GetValueString()
+        local pingValue = tonumber(dataPing:match("(%d+)"))
+
+        if pingValue >= pingThreshold then
+            TeleportService:TeleportToPlaceInstance(placeId, lowestPingServer.id)
+        end
+    end)
+    return tab
+end
+GUI.SettingsTab = GUI.createSettingsTab()
+
+player.CharacterAdded:Connect(function(character)
+    local waitTime = 2 -- Exploit-safe wait time
+    local humanoid = character:WaitForChild("Humanoid", waitTime)
+    local rootPart = character:WaitForChild("HumanoidRootPart", waitTime)
+    if not humanoid or not rootPart then
+        warn("[Elerium Hub] Character not fully loaded for feature reapply")
+        return
+    end
+    print("[Elerium Hub] Character loaded, reapplying features")
+
+    -- Reapply Reach
+    if Brew.isReach then
+        print("[Elerium Hub] Reapplying reach")
+        pcall(function()
+            Brew:undoReach()
+            Brew:doReach()
+        end)
+    end
+
+    -- Reapply Visualizer
+    if Brew.selBox then
+        print("[Elerium Hub] Reapplying visualizer")
+        pcall(function()
+            Brew:doSelBox()
+        end)
+    end
+
+    -- Reapply Flick
+    if flicking then
+        print("[Elerium Hub] Reapplying flick")
+        pcall(function()
+            initializeFlick(character)
+        end)
+    end
+
+    -- Reapply Carpet
+    if settings.carpetEnabled then
+        print("[Elerium Hub] Reapplying carpet")
+        pcall(function()
+            enableCarpet()
+        end)
+    end
+
+    -- Reapply Hip Height
+    if settings.hipHeightEnabled then
+        print("[Elerium Hub] Reapplying hip height")
+        pcall(function()
+            setHipHeight(settings.hipHeightValue)
+        end)
+    end
+
+    -- Reapply Freeze Mode
+    if settings.freezeModeEnabled then
+        print("[Elerium Hub] Reapplying freeze mode")
+        pcall(function()
+            rootPart.Anchored = true
+        end)
+    end
+
+    -- Reapply Walkspeed
+    if settings.walkspeedEnabled then
+        print("[Elerium Hub] Reapplying walkspeed")
+        pcall(function()
+            Brew:setWalkSpeed(Brew.cWalkspeed)
+        end)
+    end
+
+    -- Reapply Jump Power
+    if settings.jumpPowerEnabled then
+        print("[Elerium Hub] Reapplying jump power")
+        pcall(function()
+            Brew:setJumpPower(Brew.cJumppower)
+        end)
+    end
+
+    -- Reapply Tank Mode
+    if settings.tankEnabled then
+        print("[Elerium Hub] Reapplying tank mode")
+        pcall(function()
+            enableTank()
+        end)
+    end
+end)
